@@ -14,9 +14,7 @@ Features:
 - Run the script: `python run_llm.py`
 
 # Demo
-<video controls>
-  <source src="demo.mp4" type="video/mp4">
-</video>
+![Demo](demo.gif)
 
 # Note
 - If you have GPU, ensure that CUDA toolkit is installed.
