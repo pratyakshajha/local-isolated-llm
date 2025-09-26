@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Simple WebSocket Chat Client</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: auto;
+      padding: 2em;
+    }
+    #messages {
+      border: 1px solid #ccc;
+      padding: 1em;
+      height: 300px;
+      overflow-y: scroll;
+      margin-bottom: 1em;
+    }
+    input[type="text"] {
+      width: 80%;
+      padding: 0.5em;
+    }
+    button {
+      padding: 0.5em 1em;
+    }
+  </style>
+</head>
+<body>
+  <h1>WebSocket Chat</h1>
+  <div id="messages"></div>
+  <input type="text" id="messageInput" placeholder="Type a message">
+  <button onclick="sendMessage()">Send</button>
+
+  <script>
+    // Connect to WebSocket server
+    const socket = new WebSocket('ws://localhost:8900');
+
+    const messagesDiv = document.getElementById('messages');
+    const input = document.getElementById('messageInput');
+
+    // When connected
+    socket.onopen = () => {
+      appendMessage('✅ Connected to server');
+    };
+
+    // When receiving a message
+    socket.onmessage = (event) => {
+      appendMessage(`📩 ${event.data}`);
+    };
+
+    // When the connection is closed
+    socket.onclose = () => {
+      appendMessage('❌ Disconnected from server');
+    };
+
+    // When there's an error
+    socket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      appendMessage('⚠️ Error communicating with server');
+    };
+
+    // Send message to server
+    function sendMessage() {
+      const msg = input.value;
+      if (msg && socket.readyState === WebSocket.OPEN) {
+        socket.send(msg);
+        appendMessage(`🧑‍💻 You: ${msg}`);
+        input.value = '';
+      }
+    }
+
+    // Utility to add message to message box
+    function appendMessage(message) {
+      const div = document.createElement('div');
+      div.textContent = message;
+      messagesDiv.appendChild(div);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight; // Auto scroll
+    }
+  </script>
+</body>
+</html>
