@@ -6,6 +6,7 @@ import torch
 HF_MODEL_DICTIONARY = {
     "GEMMA_SMALL": "google/gemma-3-1b-it",
     "GEMMA": "google/gemma-3-4b-it",
+    "GEMMA_4": "google/gemma-4-26B-A4B-it",
     "CODE_GEMMA": "google/codegemma-1.1-2b",
     "GPT_2": "openai-community/gpt2",
     "LLAMA": "meta-llama/Llama-3.2-3B-Instruct",

@@ -1,0 +1,10 @@
+active_model: qwen3-8b
+
+generation:
+  temperature: 0.8
+  top_p: 0.95
+  max_tokens: 2048
+
+server:
+  host: 127.0.0.1
+  port: 8080
