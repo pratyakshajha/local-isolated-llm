@@ -1,0 +1,1 @@
+"""Local, isolated LLM application."""
