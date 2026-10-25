@@ -1,7 +1,7 @@
 """Terminal presentation for interactive local chats."""
 
 from contextlib import contextmanager
-from typing import Callable, Iterator
+from typing import Callable, Iterable, Iterator
 from textwrap import indent
 
 from rich.console import Console
@@ -75,6 +75,32 @@ class TerminalUI:
         self.console.print(Text(f"Assistant · {model_name}", style="bold magenta"))
         body = Markdown(assistant_text) if response.strip() else Text(assistant_text, style="dim")
         self.console.print(Padding(body, (0, 0, 0, 2)))
+
+    def print_assistant_stream(self, model_name: str, chunks: Iterable[str]) -> str:
+        if self.plain:
+            self._plain_print("")
+            self._plain_print(f"Assistant · {model_name}")
+        else:
+            self.console.print()
+            self.console.print(Text(f"Assistant · {model_name}", style="bold magenta"))
+
+        response = []
+        for chunk in chunks:
+            response.append(chunk)
+            if self.output_fn:
+                self.output_fn(chunk)
+            else:
+                self.console.print(chunk, end="", markup=False)
+
+        text = "".join(response)
+        if not text.strip():
+            if self.output_fn:
+                self.output_fn("(empty response)")
+            else:
+                self.console.print("(empty response)", style="dim", markup=False)
+        elif not self.output_fn:
+            self.console.print()
+        return text.strip()
 
     def show_help(self) -> None:
         if self.plain:

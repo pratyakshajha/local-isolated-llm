@@ -15,7 +15,7 @@ export function AppShell({ header, children, footer, onNewChat }: AppShellProps)
         <div className="brand-lockup">
           <div className="brand-mark"><Sparkles size={22} strokeWidth={2.5} /></div>
           <div>
-            <div className="brand-name">INK &amp; PIXEL</div>
+            <div className="brand-name">WONDERDESK</div>
             <div className="brand-caption">your local idea machine</div>
           </div>
         </div>

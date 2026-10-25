@@ -204,7 +204,6 @@ button:focus-visible, select:focus-visible, textarea:focus-visible {
   animation: loading-card-in 180ms ease-out both;
 }
 .model-loading-icon {
-  position: relative;
   display: grid;
   width: 62px;
   height: 62px;
@@ -218,24 +217,15 @@ button:focus-visible, select:focus-visible, textarea:focus-visible {
   transform: rotate(-4deg);
 }
 .model-loading-sparkle { position: relative; z-index: 1; }
-.model-loading-spinner {
-  position: absolute;
-  inset: -7px;
-  border: 2px solid transparent;
-  border-top-color: #d7604c;
-  border-right-color: #d7604c;
-  border-radius: 50%;
-  animation: model-spin 900ms linear infinite;
-}
 .model-loading-eyebrow { margin: 0 0 7px; color: #a44d3f; font-family: ui-monospace, Consolas, monospace; font-size: 9px; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase; }
 .model-loading-card h2 { margin: 0; color: var(--ink); font-size: clamp(20px, 4vw, 25px); font-weight: 900; letter-spacing: -0.04em; }
 .model-loading-name { width: fit-content; max-width: 100%; margin: 13px auto 0; padding: 7px 12px; overflow-wrap: anywhere; color: #51483c; background: #f3ead7; border: 1px solid #e2d4bc; border-radius: 999px; font-size: 12px; font-weight: 800; }
 .model-loading-description { max-width: 310px; margin: 14px auto 19px; color: #766d62; font-size: 12px; line-height: 1.6; }
+.model-loading-progress-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 7px; color: #8b8175; font-size: 10px; font-weight: 700; }
 .model-loading-progress { height: 7px; overflow: hidden; background: #e9e0d2; border: 1px solid #ded4c5; border-radius: 999px; }
 .model-loading-progress span { display: block; width: 38%; height: 100%; background: #dc6954; border-radius: inherit; animation: loading-progress 1.5s ease-in-out infinite; }
 .model-loading-local { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 16px 0 0; color: #8b8175; font-size: 10px; }
 .model-loading-local span { width: 7px; height: 7px; background: #68a477; border-radius: 50%; }
-@keyframes model-spin { to { transform: rotate(360deg); } }
 @keyframes loading-progress { 0% { transform: translateX(-110%); } 50% { transform: translateX(105%); } 100% { transform: translateX(290%); } }
 @keyframes loading-card-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 

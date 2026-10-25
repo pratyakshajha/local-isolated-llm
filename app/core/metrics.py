@@ -33,7 +33,7 @@ class AppMetrics:
             count, total = self._generation_duration[outcome]
             self._generation_duration[outcome] = (count + 1, total + duration_seconds)
 
-    def render(self, model_loaded: bool, active_sessions: int, resident_memory: int) -> str:
+    def render(self, model_loaded: bool, resident_memory: int) -> str:
         with self._lock:
             http_requests = dict(self._http_requests)
             http_duration = dict(self._http_duration)
@@ -44,9 +44,6 @@ class AppMetrics:
             "# HELP local_llm_model_loaded Whether the configured model is loaded.",
             "# TYPE local_llm_model_loaded gauge",
             f"local_llm_model_loaded {int(model_loaded)}",
-            "# HELP local_llm_active_sessions Number of active in-memory chat sessions.",
-            "# TYPE local_llm_active_sessions gauge",
-            f"local_llm_active_sessions {active_sessions}",
             "# HELP local_llm_process_resident_memory_bytes Resident process memory.",
             "# TYPE local_llm_process_resident_memory_bytes gauge",
             f"local_llm_process_resident_memory_bytes {resident_memory}",

@@ -18,16 +18,5 @@ export interface ModelOption {
 export interface ModelsResponse {
   active_model: string;
   loaded: boolean;
-  models: ModelOption[];
-}
-
-export type ServerEvent =
-  | { type: "ready"; model: string }
-  | { type: "assistant_message"; model: string; content: string }
-  | { type: "error"; content: string }
-  | { type: "generation_cancelled" };
-
-export interface UserMessageEvent {
-  type: "user_message";
-  content: string;
+  data: ModelOption[];
 }

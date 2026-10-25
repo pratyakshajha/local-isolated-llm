@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from threading import Event
-from typing import Sequence
+from typing import Iterator, Sequence
 
 from app.core.config import GenerationSettings
 
@@ -29,3 +29,14 @@ class Runtime(ABC):
         cancel_event: Event | None = None,
     ) -> str:
         """Generate one assistant response, stopping if cancellation is requested."""
+
+    def generate_stream(
+        self,
+        messages: Sequence[dict[str, str]],
+        settings: GenerationSettings,
+        cancel_event: Event | None = None,
+    ) -> Iterator[str]:
+        """Stream response text, falling back to a single generated chunk."""
+        response = self.generate(messages, settings, cancel_event=cancel_event)
+        if response:
+            yield response

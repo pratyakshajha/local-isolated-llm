@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
-from threading import Event, Lock, RLock
-from typing import Sequence
+from collections import deque
+from contextlib import contextmanager
+from threading import Condition, Event, RLock
+from time import monotonic
+from typing import Iterator, Sequence
 
 from app.core.config import AppSettings, GenerationSettings
 from app.registry.model_registry import ModelRegistry, ModelSpec
@@ -12,7 +15,7 @@ from app.runtimes.base import Runtime
 
 
 class ModelBusyError(RuntimeError):
-    """Raised rather than queueing unbounded concurrent model requests."""
+    """Raised when the bounded model request queue is full or times out."""
 
 
 class ModelService:
@@ -31,7 +34,9 @@ class ModelService:
             runtime_name, self._model_spec
         )
         self._lock = RLock()
-        self._operation_gate = Lock()
+        self._operation_condition = Condition()
+        self._operation_queue: deque[object] = deque()
+        self._operation_active = False
 
     @property
     def model_name(self) -> str:
@@ -57,9 +62,7 @@ class ModelService:
     def switch_model(self, model_name: str) -> str:
         model_spec = self.model_registry.resolve(model_name)
         runtime_name = self.settings.runtime or model_spec.runtime
-        if not self._operation_gate.acquire(blocking=False):
-            raise ModelBusyError("The model is currently busy")
-        try:
+        with self._acquire_operation_slot(timeout=0):
             with self._lock:
                 if model_spec.model_id == self._model_spec.model_id:
                     return self._model_spec.model_id
@@ -77,8 +80,52 @@ class ModelService:
                 self._model_spec = model_spec
                 self._runtime = new_runtime
                 return self._model_spec.model_id
+
+    @contextmanager
+    def _acquire_operation_slot(
+        self, timeout: float | None = None, cancel_event: Event | None = None
+    ) -> Iterator[None]:
+        timeout = (
+            self.settings.server.queue_timeout_seconds if timeout is None else timeout
+        )
+        deadline = monotonic() + timeout
+        ticket = object()
+        with self._operation_condition:
+            if cancel_event and cancel_event.is_set():
+                raise InterruptedError("Generation was cancelled")
+            if not self._operation_active and not self._operation_queue:
+                self._operation_active = True
+            else:
+                if timeout == 0 or (
+                    len(self._operation_queue)
+                    >= self.settings.server.max_queued_requests
+                ):
+                    raise ModelBusyError("The model is currently busy")
+                self._operation_queue.append(ticket)
+                try:
+                    while (
+                        self._operation_active or self._operation_queue[0] is not ticket
+                    ):
+                        if cancel_event and cancel_event.is_set():
+                            raise InterruptedError("Generation was cancelled")
+                        remaining = deadline - monotonic()
+                        if remaining <= 0:
+                            raise ModelBusyError("The model is currently busy")
+                        self._operation_condition.wait(
+                            min(remaining, 0.05) if cancel_event else remaining
+                        )
+                except BaseException:
+                    self._operation_queue.remove(ticket)
+                    self._operation_condition.notify_all()
+                    raise
+                self._operation_queue.popleft()
+                self._operation_active = True
+        try:
+            yield
         finally:
-            self._operation_gate.release()
+            with self._operation_condition:
+                self._operation_active = False
+                self._operation_condition.notify_all()
 
     def list_models(self) -> list[ModelSpec]:
         return self.model_registry.list_models()
@@ -89,9 +136,7 @@ class ModelService:
         generation: GenerationSettings | None = None,
         cancel_event: Event | None = None,
     ) -> str:
-        if not self._operation_gate.acquire(blocking=False):
-            raise ModelBusyError("The model is already generating a response")
-        try:
+        with self._acquire_operation_slot():
             with self._lock:
                 if not self._runtime.is_loaded:
                     self._runtime.load()
@@ -100,5 +145,23 @@ class ModelService:
                     generation or self.settings.generation,
                     cancel_event=cancel_event,
                 )
-        finally:
-            self._operation_gate.release()
+
+    def generate_stream(
+        self,
+        messages: Sequence[dict[str, str]],
+        generation: GenerationSettings | None = None,
+        cancel_event: Event | None = None,
+    ) -> Iterator[str]:
+        try:
+            with self._acquire_operation_slot(cancel_event=cancel_event):
+                with self._lock:
+                    if not self._runtime.is_loaded:
+                        self._runtime.load()
+                    yield from self._runtime.generate_stream(
+                        messages,
+                        generation or self.settings.generation,
+                        cancel_event=cancel_event,
+                    )
+        except InterruptedError:
+            if cancel_event is None or not cancel_event.is_set():
+                raise

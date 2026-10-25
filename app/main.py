@@ -6,7 +6,7 @@ import logging
 from app.cli.terminal import TerminalUI
 from app.core.config import load_settings
 from app.core.logging import setup_logging
-from app.services.chat_service import ChatService
+from app.llm.conversation import Conversation
 from app.services.model_service import ModelService
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,6 @@ def run_chat(
     output_fn=None,
     plain: bool = False,
     model_service=None,
-    chat_service=None,
 ) -> None:
     settings = load_settings(config_path)
     setup_logging()
@@ -28,12 +27,7 @@ def run_chat(
         output_fn=output_fn,
     )
     model_service = model_service or ModelService(settings)
-    chat_service = chat_service or ChatService(
-        model_service,
-        system_prompt=settings.system_prompt,
-        max_history_turns=settings.max_history_turns,
-    )
-    session_id = chat_service.start_session()
+    conversation = Conversation(settings.system_prompt, settings.max_history_turns)
 
     try:
         try:
@@ -59,8 +53,9 @@ def run_chat(
                 ui.show_help()
                 continue
             if command == ":new":
-                chat_service.close_session(session_id)
-                session_id = chat_service.start_session()
+                conversation = Conversation(
+                    settings.system_prompt, settings.max_history_turns
+                )
                 ui.show_notice("Started a fresh conversation.")
                 continue
             if not command:
@@ -68,17 +63,21 @@ def run_chat(
 
             try:
                 with ui.status("Generating response"):
-                    response = chat_service.generate(session_id, user_input)
+                    response = ui.print_assistant_stream(
+                        model_service.model_name,
+                        model_service.generate_stream(
+                            conversation.messages_for(user_input)
+                        ),
+                    )
             except Exception as exc:
                 logger.exception("Chat response generation failed")
                 ui.show_error(str(exc))
                 continue
-            ui.show_response(model_service.model_name, response)
+            conversation.add_turn(user_input, response)
         ui.show_goodbye()
     except KeyboardInterrupt:
         ui.show_notice("Interrupted.")
     finally:
-        chat_service.close_session(session_id)
         model_service.unload_model()
 
 

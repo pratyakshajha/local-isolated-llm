@@ -1,15 +1,7 @@
-from logging_config import setup_logging
-from llm_utils import LocalLlm
+"""Compatibility entry point for the local chat CLI."""
 
-setup_logging()
+from app.main import main
 
-# GEMMA_SMALL,GEMMA,CODE_GEMMA,LLAMA,LLAMA_SMALL,BERT
-local_llm = LocalLlm("GEMMA_4")
 
-print(f"{local_llm.model_name} is ready! (Type 'exit' to quit)")
-while True:
-    user_input = input("You: ")
-    if user_input.lower() == 'exit':
-        break
-    response = local_llm.get_response(user_input)
-    print(f"{local_llm.model_name}: {response}")
+if __name__ == "__main__":
+    main()

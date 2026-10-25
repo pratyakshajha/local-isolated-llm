@@ -29,8 +29,8 @@ class GenerationSettings:
             raise ValueError("generation.top_p must be greater than 0 and at most 1")
         if self.max_new_tokens < 1:
             raise ValueError("generation.max_tokens must be at least 1")
-        if self.max_new_tokens > 8_192:
-            raise ValueError("generation.max_new_tokens must not exceed 8192")
+        if self.max_new_tokens > 32_768:
+            raise ValueError("generation.max_new_tokens must not exceed 32768")
 
 
 @dataclass(frozen=True)
@@ -38,10 +38,10 @@ class ServerSettings:
     host: str = "127.0.0.1"
     port: int = 8080
     allowed_hosts: tuple[str, ...] = ("localhost", "127.0.0.1", "::1")
-    max_request_bytes: int = 65_536
-    max_message_chars: int = 16_384
-    max_sessions: int = 128
-    session_ttl_seconds: int = 3_600
+    max_request_bytes: int = 4_194_304
+    max_message_chars: int = 262_144
+    max_queued_requests: int = 4
+    queue_timeout_seconds: float = 30.0
 
     def __post_init__(self):
         if not self.host:
@@ -50,16 +50,21 @@ class ServerSettings:
             raise ValueError("server.port must be between 1 and 65535")
         if not self.allowed_hosts or any(not host.strip() for host in self.allowed_hosts):
             raise ValueError("server.allowed_hosts must contain non-empty host names")
-        if not 1 <= self.max_request_bytes <= 1_048_576:
-            raise ValueError("server.max_request_bytes must be between 1 and 1048576")
-        if self.max_message_chars < 1:
-            raise ValueError("server.max_message_chars must be at least 1")
-        if self.max_message_chars > 16_384:
-            raise ValueError("server.max_message_chars must not exceed 16384")
-        if not 1 <= self.max_sessions <= 1_024:
-            raise ValueError("server.max_sessions must be between 1 and 1024")
-        if self.session_ttl_seconds < 1:
-            raise ValueError("server.session_ttl_seconds must be at least 1")
+        if not 1 <= self.max_request_bytes <= 16_777_216:
+            raise ValueError(
+                "server.max_request_bytes must be between 1 and 16777216"
+            )
+        if not 1 <= self.max_message_chars <= 1_048_576:
+            raise ValueError(
+                "server.max_message_chars must be between 1 and 1048576"
+            )
+        if not 0 <= self.max_queued_requests <= 64:
+            raise ValueError("server.max_queued_requests must be between 0 and 64")
+        if (
+            not math.isfinite(self.queue_timeout_seconds)
+            or not 0 <= self.queue_timeout_seconds <= 600
+        ):
+            raise ValueError("server.queue_timeout_seconds must be between 0 and 600")
 
 
 @dataclass(frozen=True)
@@ -130,10 +135,10 @@ def load_settings(config_path: str | Path | None = None) -> AppSettings:
                     "LOCAL_LLM_ALLOWED_HOSTS", ",".join(configured_hosts)
                 ).split(",")
             ),
-            max_request_bytes=int(server.get("max_request_bytes", 65_536)),
-            max_message_chars=int(server.get("max_message_chars", 16_384)),
-            max_sessions=int(server.get("max_sessions", 128)),
-            session_ttl_seconds=int(server.get("session_ttl_seconds", 3_600)),
+            max_request_bytes=int(server.get("max_request_bytes", 4_194_304)),
+            max_message_chars=int(server.get("max_message_chars", 262_144)),
+            max_queued_requests=int(server.get("max_queued_requests", 4)),
+            queue_timeout_seconds=float(server.get("queue_timeout_seconds", 30.0)),
         )
         return AppSettings(
             model_id=str(model_id),

@@ -17,26 +17,33 @@ class ModelSelection(BaseModel):
     model_id: str = Field(min_length=1, max_length=256)
 
 
-@router.get("/models")
-def list_models(
+@router.get("/v1/models")
+def list_openai_models(
     model_service: ModelService = Depends(get_model_service),
 ) -> dict[str, object]:
+    active_model = model_service.model_registry.resolve(model_service.model_id)
+    specs = {model.model_id: model for model in model_service.list_models()}
+    specs.setdefault(active_model.model_id, active_model)
     return {
+        "object": "list",
         "active_model": model_service.model_id,
         "loaded": model_service.is_loaded,
-        "models": [
+        "data": [
             {
                 "id": model.model_id,
+                "object": "model",
+                "created": 0,
+                "owned_by": "local",
                 "name": model.display_name,
                 "runtime": model.runtime,
                 "active": model.model_id == model_service.model_id,
             }
-            for model in model_service.list_models()
+            for model in specs.values()
         ],
     }
 
 
-@router.post("/models/active")
+@router.post("/v1/models/active")
 async def select_model(
     selection: ModelSelection,
     model_service: ModelService = Depends(get_model_service),

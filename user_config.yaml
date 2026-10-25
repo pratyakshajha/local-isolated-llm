@@ -1,4 +1,8 @@
-active_model: qwen3-8b
+# gemma_small, qwen3-8b, llama-2-7b-chat-hf, llama-2-13b-chat-hf, mistral-7B-v0.1, gemma-7B-v1.0
+active_model: gemma_small
+runtime: transformers
+system_prompt: You are a helpful assistant.
+max_history_turns: 20
 
 generation:
   temperature: 0.8

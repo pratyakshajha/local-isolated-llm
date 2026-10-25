@@ -1,1 +1,1 @@
-"""HTTP and WebSocket API."""
+"""HTTP API."""

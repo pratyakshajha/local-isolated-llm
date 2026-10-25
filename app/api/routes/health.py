@@ -31,7 +31,6 @@ def readiness(request: Request) -> dict[str, object]:
 @router.get("/metrics", response_class=PlainTextResponse, include_in_schema=False)
 def metrics(request: Request) -> PlainTextResponse:
     model_service = request.app.state.model_service
-    chat_service = request.app.state.chat_service
     try:
         import psutil
 
@@ -47,7 +46,6 @@ def metrics(request: Request) -> PlainTextResponse:
             resident_memory = 0
     body = request.app.state.metrics.render(
         model_loaded=model_service.is_loaded,
-        active_sessions=chat_service.active_sessions,
         resident_memory=resident_memory,
     )
     return PlainTextResponse(

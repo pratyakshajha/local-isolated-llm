@@ -14,11 +14,10 @@ from fastapi import FastAPI
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.middleware import BrowserSecurityMiddleware, RequestSizeLimitMiddleware
-from app.api.routes import chat, health, models, ui
+from app.api.routes import health, models, openai, ui
 from app.core.config import AppSettings, load_settings
 from app.core.logging import setup_logging
 from app.core.metrics import AppMetrics
-from app.services.chat_service import ChatService
 from app.services.model_service import ModelService
 
 logger = logging.getLogger(__name__)
@@ -48,17 +47,9 @@ def get_public_base_url(settings: AppSettings, public_url: str | None = None) ->
 def create_app(
     settings: AppSettings | None = None,
     model_service: ModelService | None = None,
-    chat_service: ChatService | None = None,
 ) -> FastAPI:
     settings = settings or load_settings()
     model_service = model_service or ModelService(settings)
-    chat_service = chat_service or ChatService(
-        model_service,
-        system_prompt=settings.system_prompt,
-        max_history_turns=settings.max_history_turns,
-        max_sessions=settings.server.max_sessions,
-        session_ttl_seconds=settings.server.session_ttl_seconds,
-    )
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -104,7 +95,6 @@ def create_app(
     application.state.metrics = AppMetrics()
     application.state.settings = settings
     application.state.model_service = model_service
-    application.state.chat_service = chat_service
     allowed_hosts = set(settings.server.allowed_hosts)
     if settings.server.host not in {"0.0.0.0", "::", ""}:
         allowed_hosts.add(settings.server.host)
@@ -160,7 +150,7 @@ def create_app(
 
     application.include_router(health.router)
     application.include_router(models.router)
-    application.include_router(chat.router)
+    application.include_router(openai.router)
     application.include_router(ui.router)
     return application
 
