@@ -34,9 +34,10 @@ def _make_call(value: Any) -> dict[str, Any] | None:
 
 def _tool_instruction(tools: Sequence[dict[str, Any]], tool_choice: Any) -> str:
     instruction = (
-        "You may call only the functions listed in <tools>. To call a function, "
-        'emit <tool_call>{"name":"function_name","arguments":{}}</tool_call>. '
-        "Do not invent function names; otherwise answer normally."
+        "Use only the listed tools. When needed, emit "
+        '<tool_call>{"name":"FUNCTION_NAME","arguments":{}}</tool_call> '
+        "with the real function name and arguments. Do not describe a tool call "
+        "in prose. Otherwise answer normally."
     )
     if tool_choice == "required":
         # shortcut: required choices are prompt-enforced only, add constrained decoding when a runtime supports it.

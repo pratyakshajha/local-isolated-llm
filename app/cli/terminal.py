@@ -107,6 +107,7 @@ class TerminalUI:
             self._plain_print(
                 "Commands\n"
                 "  :help  Show available commands\n"
+                "  :fit   Check model fit (:fit <gpu_vram_gb> <ram_gb> for manual values)\n"
                 "  :new   Start a fresh conversation\n"
                 "  :exit  Quit and unload the model"
             )
@@ -115,6 +116,12 @@ class TerminalUI:
         self.console.print()
         self.console.print(Text("Commands", style="bold cyan"))
         self.console.print(Text("  :help  Show available commands", style="dim"))
+        self.console.print(
+            Text(
+                "  :fit   Check model fit (:fit <gpu_vram_gb> <ram_gb> for manual values)",
+                style="dim",
+            )
+        )
         self.console.print(Text("  :new   Start a fresh conversation", style="dim"))
         self.console.print(Text("  :exit  Quit and unload the model", style="dim"))
 

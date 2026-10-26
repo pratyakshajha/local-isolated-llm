@@ -45,10 +45,22 @@ class TransformersRuntime(Runtime):
 
         logger.info("Loading model %s on %s", self.model_id, device)
         tokenizer = AutoTokenizer.from_pretrained(self.model_id)
-        model = AutoModelForCausalLM.from_pretrained(
-            self.model_id,
-            dtype=dtype,
-        ).to(device)
+        load_args = {"dtype": dtype}
+        if device.type == "cuda":
+            from transformers import BitsAndBytesConfig
+
+            load_args.update(
+                quantization_config=BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_compute_dtype=dtype,
+                ),
+                device_map={"": torch.cuda.current_device()},
+            )
+        model = AutoModelForCausalLM.from_pretrained(self.model_id, **load_args)
+        if device.type != "cuda":
+            model = model.to(device)
         model.eval()
 
         self._device = device
@@ -88,13 +100,6 @@ class TransformersRuntime(Runtime):
         if not self.is_loaded:
             self.load()
 
-        import torch
-        from transformers import (
-            StoppingCriteria,
-            StoppingCriteriaList,
-            TextIteratorStreamer,
-        )
-
         encoded = self._tokenizer.apply_chat_template(
             list(messages),
             tokenize=True,
@@ -102,6 +107,45 @@ class TransformersRuntime(Runtime):
             return_tensors="pt",
             return_dict=True,
         )
+        yield from self._generate_encoded(encoded, settings, cancel_event)
+
+    def generate_completion(
+        self,
+        prompt: str,
+        settings: GenerationSettings,
+        cancel_event: Event | None = None,
+    ) -> str:
+        return "".join(
+            self.generate_completion_stream(
+                prompt, settings, cancel_event=cancel_event
+            )
+        )
+
+    def generate_completion_stream(
+        self,
+        prompt: str,
+        settings: GenerationSettings,
+        cancel_event: Event | None = None,
+    ) -> Iterator[str]:
+        if not self.is_loaded:
+            self.load()
+
+        encoded = self._tokenizer(prompt, return_tensors="pt")
+        yield from self._generate_encoded(encoded, settings, cancel_event)
+
+    def _generate_encoded(
+        self,
+        encoded,
+        settings: GenerationSettings,
+        cancel_event: Event | None,
+    ) -> Iterator[str]:
+        import torch
+        from transformers import (
+            StoppingCriteria,
+            StoppingCriteriaList,
+            TextIteratorStreamer,
+        )
+
         encoded = {
             name: tensor.to(self._device) for name, tensor in encoded.items()
         }

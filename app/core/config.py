@@ -20,7 +20,7 @@ DEFAULT_MODEL_ID = "google/gemma-3-1b-it"
 class GenerationSettings:
     temperature: float = 0.8
     top_p: float = 0.95
-    max_new_tokens: int = 2048
+    max_new_tokens: int = 512
 
     def __post_init__(self):
         if not math.isfinite(self.temperature) or self.temperature < 0:
@@ -74,7 +74,7 @@ class AppSettings:
     generation: GenerationSettings = field(default_factory=GenerationSettings)
     server: ServerSettings = field(default_factory=ServerSettings)
     system_prompt: str = "You are a helpful assistant."
-    max_history_turns: int = 20
+    max_history_turns: int = 4
 
     def __post_init__(self):
         if not self.model_id.strip():
@@ -117,7 +117,7 @@ def load_settings(config_path: str | Path | None = None) -> AppSettings:
         raise ValueError("server.allowed_hosts must be a list of host names")
     model_id = raw.get("model_id", raw.get("active_model", DEFAULT_MODEL_ID))
     max_new_tokens = generation.get(
-        "max_new_tokens", generation.get("max_tokens", 2048)
+        "max_new_tokens", generation.get("max_tokens", 512)
     )
 
     try:
@@ -148,7 +148,7 @@ def load_settings(config_path: str | Path | None = None) -> AppSettings:
             system_prompt=str(
                 raw.get("system_prompt", "You are a helpful assistant.")
             ),
-            max_history_turns=int(raw.get("max_history_turns", 20)),
+            max_history_turns=int(raw.get("max_history_turns", 4)),
         )
     except (TypeError, ValueError) as exc:
         raise ValueError(f"Invalid configuration in {path}: {exc}") from exc

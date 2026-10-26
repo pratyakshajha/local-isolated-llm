@@ -165,3 +165,39 @@ class ModelService:
         except InterruptedError:
             if cancel_event is None or not cancel_event.is_set():
                 raise
+
+    def generate_completion(
+        self,
+        prompt: str,
+        generation: GenerationSettings | None = None,
+        cancel_event: Event | None = None,
+    ) -> str:
+        with self._acquire_operation_slot():
+            with self._lock:
+                if not self._runtime.is_loaded:
+                    self._runtime.load()
+                return self._runtime.generate_completion(
+                    prompt,
+                    generation or self.settings.generation,
+                    cancel_event=cancel_event,
+                )
+
+    def generate_completion_stream(
+        self,
+        prompt: str,
+        generation: GenerationSettings | None = None,
+        cancel_event: Event | None = None,
+    ) -> Iterator[str]:
+        try:
+            with self._acquire_operation_slot(cancel_event=cancel_event):
+                with self._lock:
+                    if not self._runtime.is_loaded:
+                        self._runtime.load()
+                    yield from self._runtime.generate_completion_stream(
+                        prompt,
+                        generation or self.settings.generation,
+                        cancel_event=cancel_event,
+                    )
+        except InterruptedError:
+            if cancel_event is None or not cancel_event.is_set():
+                raise
