@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Feather, Plus, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Feather, Sparkles } from "lucide-react";
 import { AppShell } from "./components/AppShell";
 import { Composer } from "./components/Composer";
 import { ConnectionStatus } from "./components/ConnectionStatus";
+import { HardwareFit } from "./components/HardwareFit";
 import { MessageList } from "./components/MessageList";
-import { ModelSelector } from "./components/ModelSelector";
-import { fetchModels, selectActiveModel } from "./lib/api";
+import { ModelLoadingOverlay } from "./components/ModelLoadingOverlay";
+import { fetchModelLoadStatus, fetchModels, selectActiveModel } from "./lib/api";
 import { useChat } from "./hooks/useChat";
-import type { ModelOption } from "./types";
+import type { ModelLoadStatus, ModelOption } from "./types";
 
 export default function App() {
   const [models, setModels] = useState<ModelOption[]>([]);
@@ -28,7 +29,7 @@ export default function App() {
   const [modelLoadStartedAt, setModelLoadStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [modelError, setModelError] = useState("");
-  const loadingDialogRef = useRef<HTMLDivElement>(null);
+  const [modelLoadStatus, setModelLoadStatus] = useState<ModelLoadStatus | null>(null);
 
   const loadModels = useCallback(async () => {
     try {
@@ -46,10 +47,6 @@ export default function App() {
   }, [loadModels]);
 
   useEffect(() => {
-    if (isSwitchingModel) loadingDialogRef.current?.focus();
-  }, [isSwitchingModel]);
-
-  useEffect(() => {
     if (!isSwitchingModel || modelLoadStartedAt === null) return;
 
     const updateElapsed = () => {
@@ -60,6 +57,25 @@ export default function App() {
     return () => window.clearInterval(interval);
   }, [isSwitchingModel, modelLoadStartedAt]);
 
+  useEffect(() => {
+    if (!isSwitchingModel) return;
+    let active = true;
+    const pollStatus = async () => {
+      try {
+        const status = await fetchModelLoadStatus();
+        if (active) setModelLoadStatus(status);
+      } catch {
+        // Keep the elapsed-time fallback visible if status polling fails.
+      }
+    };
+    void pollStatus();
+    const interval = window.setInterval(() => void pollStatus(), 1000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [isSwitchingModel]);
+
   const elapsedLabel = `${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, "0")}`;
 
   async function handleModelChange(modelId: string) {
@@ -68,6 +84,7 @@ export default function App() {
     setLoadingModelName(models.find((model) => model.id === modelId)?.name ?? modelId);
     setModelLoadStartedAt(Date.now());
     setElapsedSeconds(0);
+    setModelLoadStatus(null);
     setModelError("");
     try {
       const selectedModel = await selectActiveModel(modelId);
@@ -84,36 +101,33 @@ export default function App() {
   }
 
   const header = (
-    <>
-      <div className="mobile-brand"><Sparkles size={19} /> WONDERDESK</div>
-      <button
-        className="mobile-new-chat"
-        type="button"
-        onClick={startNewChat}
-        aria-label="Start a new chat"
-        title="New chat"
-      >
-        <Plus size={19} />
-      </button>
-      <ModelSelector
-        activeModel={activeModel}
-        isLoading={isSwitchingModel}
-        models={models}
-        onChange={(modelId) => void handleModelChange(modelId)}
+    <div className="topbar-controls">
+      <div className="topbar-brand"><Sparkles size={19} aria-hidden="true" /> WONDERDESK</div>
+      <HardwareFit
+        activeModelId={activeModel}
+        activeModelName={models.find((model) => model.id === activeModel)?.name}
+        onSelectModel={(modelId) => void handleModelChange(modelId)}
       />
       <ConnectionStatus state={connection} onReconnect={reconnect} />
-    </>
+    </div>
   );
 
   const footer = (
     <footer className="composer-dock">
-      <Composer
-        disabled={connection !== "connected" || isSwitchingModel}
-        isCancelling={isCancelling}
-        isGenerating={isGenerating}
-        onSend={sendMessage}
-        onStop={cancelGeneration}
-      />
+      {models.some((model) => model.id === activeModel && model.supports_chat === false) && (
+        <span className="model-capability-warning" role="status">
+          The active model doesn&apos;t support chat. Use /v1/completions or choose a chat model.
+        </span>
+      )}
+      <div className="composer-row">
+        <Composer
+          disabled={connection !== "connected" || isSwitchingModel}
+          isCancelling={isCancelling}
+          isGenerating={isGenerating}
+          onSend={sendMessage}
+          onStop={cancelGeneration}
+        />
+      </div>
       <p className="footer-note">
         <Feather size={12} />
         An AI model can make mistakes. Keep your curiosity and double-check the facts.
@@ -122,7 +136,7 @@ export default function App() {
   );
 
   return (
-    <AppShell header={header} footer={footer} onNewChat={startNewChat}>
+    <AppShell header={header} footer={footer}>
       {modelError && <div className="model-error" role="alert">{modelError}</div>}
       <MessageList
         messages={messages}
@@ -131,36 +145,11 @@ export default function App() {
         onSuggestion={sendMessage}
       />
       {isSwitchingModel && (
-        <div
-          ref={loadingDialogRef}
-          className="model-loading-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="model-loading-title"
-          aria-describedby="model-loading-description"
-          tabIndex={-1}
-          onKeyDown={(event) => {
-            if (event.key === "Tab") event.preventDefault();
-          }}
-        >
-          <div className="model-loading-card">
-            <div className="model-loading-icon" aria-hidden="true">
-              <Sparkles className="model-loading-sparkle" size={18} />
-            </div>
-            <p className="model-loading-eyebrow">Getting your studio ready</p>
-            <h2 id="model-loading-title">Preparing your model</h2>
-            <p className="model-loading-name">{loadingModelName}</p>
-            <p id="model-loading-description" className="model-loading-description">
-              Downloading and loading the model. Large models can take several minutes on the first run.
-            </p>
-            <div className="model-loading-progress-meta" aria-live="off">
-              <span>Preparing model</span>
-              <span>Elapsed {elapsedLabel}</span>
-            </div>
-            <div className="model-loading-progress" aria-hidden="true"><span /></div>
-            <p className="model-loading-local"><span /> Your model stays on this machine</p>
-          </div>
-        </div>
+        <ModelLoadingOverlay
+          modelName={loadingModelName}
+          elapsedLabel={elapsedLabel}
+          status={modelLoadStatus}
+        />
       )}
     </AppShell>
   );

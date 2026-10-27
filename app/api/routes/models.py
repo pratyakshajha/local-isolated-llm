@@ -77,6 +77,13 @@ class ModelSelection(BaseModel):
     model_id: str = Field(min_length=1, max_length=256)
 
 
+@router.get("/api/models/active/status")
+def active_model_status(
+    model_service: ModelService = Depends(get_model_service),
+) -> dict[str, object]:
+    return model_service.status
+
+
 @router.get("/api/models/cached")
 async def list_cached_models(
     model_service: ModelService = Depends(get_model_service),

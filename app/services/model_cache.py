@@ -12,9 +12,10 @@ _TOKENIZER_FILES = {
     "sentencepiece.bpe.model",
     "vocab.txt",
 }
-_WEIGHT_FILES = {"model.safetensors", "pytorch_model.bin"}
+_WEIGHT_FILES = {"model.safetensors", "model.bin", "pytorch_model.bin"}
 _WEIGHT_INDEX_SUFFIXES = {
     "model.safetensors.index.json": ".safetensors",
+    "model.bin.index.json": ".bin",
     "pytorch_model.bin.index.json": ".bin",
 }
 

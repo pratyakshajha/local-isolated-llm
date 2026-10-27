@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections import deque
 from contextlib import contextmanager
-from threading import Condition, Event, RLock
-from time import monotonic
+from threading import Condition, Event, Lock, RLock
+from time import monotonic, time
 from typing import Iterator, Sequence
 
 from app.core.config import AppSettings, GenerationSettings
@@ -34,6 +34,16 @@ class ModelService:
             runtime_name, self._model_spec
         )
         self._lock = RLock()
+        self._switch_lock = Lock()
+        self._status_lock = Lock()
+        self._status = {
+            "state": "idle",
+            "model_id": self._model_spec.model_id,
+            "bytes_done": 0,
+            "bytes_total": None,
+            "updated_at": time(),
+            "error": None,
+        }
         self._operation_condition = Condition()
         self._operation_queue: deque[object] = deque()
         self._operation_active = False
@@ -50,10 +60,56 @@ class ModelService:
     def is_loaded(self) -> bool:
         return self._runtime.is_loaded
 
+    @property
+    def status(self) -> dict[str, object]:
+        with self._status_lock:
+            return dict(self._status)
+
+    def _set_status(
+        self,
+        state: str,
+        model_id: str,
+        *,
+        reset_progress: bool = False,
+        progress: tuple[int, int | None] | None = None,
+        error: str | None = None,
+    ) -> None:
+        with self._status_lock:
+            self._status.update(
+                state=state,
+                model_id=model_id,
+                updated_at=time(),
+                error=error,
+            )
+            if reset_progress:
+                self._status.update(bytes_done=0, bytes_total=None)
+            if progress is not None:
+                self._status.update(bytes_done=progress[0], bytes_total=progress[1])
+
+    def _report_progress(self, done: int, total: int | None) -> None:
+        with self._status_lock:
+            self._status.update(
+                bytes_done=done,
+                bytes_total=total,
+                updated_at=time(),
+            )
+
     def load_model(self) -> str:
         with self._lock:
-            self._runtime.load()
-            return self._model_spec.model_id
+            model_id = self._model_spec.model_id
+            if self._runtime.is_loaded:
+                self._set_status("ready", model_id)
+                return model_id
+            self._set_status("downloading", model_id, reset_progress=True)
+            try:
+                self._runtime.prefetch(self._report_progress)
+                self._set_status("loading", model_id)
+                self._runtime.load()
+            except Exception as exc:
+                self._set_status("failed", model_id, error=str(exc))
+                raise
+            self._set_status("ready", model_id)
+            return model_id
 
     def unload_model(self) -> None:
         with self._lock:
@@ -62,24 +118,42 @@ class ModelService:
     def switch_model(self, model_name: str) -> str:
         model_spec = self.model_registry.resolve(model_name)
         runtime_name = self.settings.runtime or model_spec.runtime
-        with self._acquire_operation_slot(timeout=0):
-            with self._lock:
-                if model_spec.model_id == self._model_spec.model_id:
-                    return self._model_spec.model_id
-
-                new_runtime = self.runtime_registry.create(runtime_name, model_spec)
-                previous_runtime = self._runtime
-                was_loaded = previous_runtime.is_loaded
-                if was_loaded:
-                    previous_runtime.unload()
-                    try:
-                        new_runtime.load()
-                    except Exception:
-                        previous_runtime.load()
-                        raise
-                self._model_spec = model_spec
-                self._runtime = new_runtime
+        if not self._switch_lock.acquire(blocking=False):
+            raise ModelBusyError("A model switch is already in progress")
+        try:
+            if model_spec.model_id == self._model_spec.model_id:
                 return self._model_spec.model_id
+            with self._operation_condition:
+                if self._operation_active or self._operation_queue:
+                    raise ModelBusyError("The model is currently busy")
+            new_runtime = self.runtime_registry.create(runtime_name, model_spec)
+
+            self._set_status("downloading", model_spec.model_id, reset_progress=True)
+            try:
+                new_runtime.prefetch(self._report_progress)
+                self._set_status("loading", model_spec.model_id)
+                with self._acquire_operation_slot(timeout=0):
+                    with self._lock:
+                        previous_runtime = self._runtime
+                        was_loaded = previous_runtime.is_loaded
+                        if was_loaded:
+                            previous_runtime.unload()
+                            try:
+                                new_runtime.load()
+                            except Exception:
+                                previous_runtime.load()
+                                raise
+                        else:
+                            new_runtime.load()
+                        self._model_spec = model_spec
+                        self._runtime = new_runtime
+                self._set_status("ready", model_spec.model_id)
+                return model_spec.model_id
+            except Exception as exc:
+                self._set_status("failed", model_spec.model_id, error=str(exc))
+                raise
+        finally:
+            self._switch_lock.release()
 
     @contextmanager
     def _acquire_operation_slot(

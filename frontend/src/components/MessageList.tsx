@@ -44,6 +44,8 @@ function EmptyState({ onSuggestion }: Pick<MessageListProps, "onSuggestion">) {
 
 export function MessageList({ messages, isGenerating, modelName, onSuggestion }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const lastMessage = messages[messages.length - 1];
+  const hasAssistantMessage = lastMessage?.role === "assistant";
 
   useEffect(() => {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -75,10 +77,15 @@ export function MessageList({ messages, isGenerating, modelName, onSuggestion }:
                 ) : (
                   <p>{message.content}</p>
                 )}
+                {isGenerating && hasAssistantMessage && message.id === lastMessage.id && (
+                  <div className="thinking-indicator" role="status" aria-label="Assistant is responding">
+                    <span /><span /><span />
+                  </div>
+                )}
               </div>
             </article>
           ))}
-          {isGenerating && (
+          {isGenerating && !hasAssistantMessage && (
             <article className="message message--assistant" aria-live="polite">
               <div className="message-heading">
                 <span className="message-avatar message-avatar--assistant" aria-hidden="true">

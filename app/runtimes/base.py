@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from threading import Event
-from typing import Iterator, Sequence
+from typing import Callable, Iterator, Sequence
 
 from app.core.config import GenerationSettings
 
@@ -16,6 +16,11 @@ class Runtime(ABC):
     @abstractmethod
     def load(self) -> None:
         """Load model resources."""
+
+    def prefetch(
+        self, progress: Callable[[int, int | None], None] | None = None
+    ) -> None:
+        """Download model resources before loading them, if the runtime supports it."""
 
     @abstractmethod
     def unload(self) -> None:

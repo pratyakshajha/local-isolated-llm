@@ -4,12 +4,29 @@ from __future__ import annotations
 
 import logging
 from threading import Event, Thread
-from typing import Iterator, Sequence
+from typing import Callable, Iterator, Sequence
 
 from app.core.config import GenerationSettings
 from app.runtimes.base import Runtime
 
 logger = logging.getLogger(__name__)
+
+_MODEL_ASSETS = {
+    "added_tokens.json",
+    "chat_template.jinja",
+    "chat_template.json",
+    "config.json",
+    "generation_config.json",
+    "merges.txt",
+    "sentencepiece.bpe.model",
+    "special_tokens_map.json",
+    "spiece.model",
+    "tokenizer.json",
+    "tokenizer.model",
+    "tokenizer_config.json",
+    "vocab.json",
+    "vocab.txt",
+}
 
 
 class TransformersRuntime(Runtime):
@@ -28,6 +45,86 @@ class TransformersRuntime(Runtime):
     @property
     def is_loaded(self) -> bool:
         return self._model is not None and self._tokenizer is not None
+
+    def prefetch(
+        self, progress: Callable[[int, int | None], None] | None = None
+    ) -> None:
+        from huggingface_hub import HfApi, snapshot_download
+        from huggingface_hub.utils import tqdm as hf_tqdm
+
+        from app.services.model_cache import get_downloaded_model_ids
+
+        has_cached_model = self.model_id in get_downloaded_model_ids({self.model_id})
+        try:
+            filenames = {
+                sibling.rfilename
+                for sibling in HfApi().model_info(self.model_id).siblings
+            }
+        except Exception as exc:
+            if not has_cached_model:
+                raise
+            logger.warning(
+                "Unable to check for updates to %s; using the complete cached model: %s",
+                self.model_id,
+                exc,
+            )
+            return
+
+        safetensors = sorted(
+            name for name in filenames if name.endswith(".safetensors")
+        )
+        if safetensors:
+            weights = safetensors
+            indexes = sorted(
+                name for name in filenames if name.endswith(".safetensors.index.json")
+            )
+        else:
+            weights = sorted(
+                name
+                for name in filenames
+                if name.endswith(".bin")
+                and (
+                    name.rsplit("/", 1)[-1].startswith(("pytorch_model", "model-"))
+                    or name == "model.bin"
+                )
+            )
+            indexes = sorted(
+                name for name in filenames if name.endswith(".bin.index.json")
+            )
+        if not weights:
+            raise ValueError(f"No supported model weights found for {self.model_id}")
+
+        allow_patterns = sorted(filenames & _MODEL_ASSETS) + weights + indexes
+
+        class DownloadProgress(hf_tqdm):
+            def __init__(self, *args, **kwargs):
+                # Reconstruction is disk I/O; this is the actual network transfer bar.
+                self._track_progress = kwargs.get("desc", "").startswith(
+                    "Downloading bytes"
+                )
+                super().__init__(*args, **kwargs)
+
+            def _report(self):
+                if progress and self._track_progress:
+                    total = getattr(self, "total", None)
+                    progress(int(getattr(self, "n", 0)), int(total) if total else None)
+
+            def update(self, n=1):
+                result = super().update(n)
+                self._report()
+                return result
+
+            def refresh(self, *args, **kwargs):
+                result = super().refresh(*args, **kwargs)
+                self._report()
+                return result
+
+        logger.info("Downloading model files for %s", self.model_id)
+        snapshot_download(
+            self.model_id,
+            allow_patterns=allow_patterns,
+            tqdm_class=DownloadProgress,
+        )
 
     def load(self) -> None:
         if self.is_loaded:

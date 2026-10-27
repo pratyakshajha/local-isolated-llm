@@ -64,13 +64,13 @@ export function Composer({ disabled, isGenerating, isCancelling, onSend, onStop 
               : <ArrowUp size={20} strokeWidth={2.5} />}
         </button>
       </div>
-      <p className="composer-hint">
-        {isCancelling
-          ? "Stopping the model…"
-          : isGenerating
-            ? "The model is thinking · Select stop to cancel"
-            : "Enter to send · Shift + Enter for a new line"}
-      </p>
+      {(isCancelling || isGenerating) && (
+        <p className="composer-hint">
+          {isCancelling
+            ? "Stopping the model…"
+            : "The model is thinking · Select stop to cancel"}
+        </p>
+      )}
     </div>
   );
 }
