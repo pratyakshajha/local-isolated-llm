@@ -34,7 +34,7 @@ COPY app ./app
 COPY user_config.yaml ./user_config.yaml
 COPY llm_server.py ./llm_server.py
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python3 -m pip install --upgrade pip==25.3 \
+    python3 -m pip install --upgrade pip==25.3 setuptools==84.2.1 \
     && python3 -m pip install . --extra-index-url https://download.pytorch.org/whl/cu130 \
     && python3 -c "import torch, uvicorn; assert torch.version.cuda == '13.0'" \
     && chown -R llm:llm /app
