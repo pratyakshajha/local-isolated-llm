@@ -24,7 +24,7 @@ Start the server:
 
 On Linux/macOS use `bash scripts/run.sh`; pass server options through, e.g. `bash scripts/run.sh --config settings.yaml`. In PowerShell, use `.\scripts\run.ps1 -Config settings.yaml` for a custom config.
 
-Open <http://127.0.0.1:8080/>. The server loads the configured model before accepting requests, so startup may take a while. Select another model from the model menu; use **Stop** to cancel an active response or **New chat** to reset the conversation.
+Open <http://127.0.0.1:8080/>. The server loads the configured model before accepting requests, so startup may take a while. Select another model from the model menu; use **Stop** to cancel an active response or **New chat** to reset the conversation. During a model switch, the overlay shows byte progress when available; otherwise it shows an activity indicator, elapsed time, and known total size. After 30 seconds without transfer updates, it says “No transfer updates yet.” It then distinguishes loading the model into memory from finishing the switch.
 
 ### Command line
 
@@ -46,6 +46,15 @@ Build the image and run it bound to loopback, with a persistent model cache:
 ```
 
 On Linux/macOS use `bash scripts/docker.sh build` and `bash scripts/docker.sh run`. The run helper publishes on loopback, persists the model cache, and mounts the local Hugging Face token read-only when present.
+
+**GPU support (NVIDIA only):** Install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html), then build and run with GPU passthrough enabled:
+
+```powershell
+.\scripts\docker.ps1 build
+.\scripts\docker.ps1 run -Gpu
+```
+
+On Linux/macOS, use `bash scripts/docker.sh build` and `bash scripts/docker.sh run --gpu`. The CUDA 13.0 image adds approximately 2 GB; AMD GPU support is not included. For CPU-only Docker, use `run` without the GPU option.
 
 The token mount is needed for gated models such as Gemma; omit it for models that do not require Hugging Face access. The image runs as a non-root user and includes a readiness health check. It has no built-in TLS or authentication. Keep it local, or put it behind a trusted HTTPS reverse proxy before allowing remote access.
 
@@ -78,12 +87,12 @@ Settings are read from `user_config.yaml`. For example:
 ```yaml
 active_model: gemma_small
 runtime: transformers
-max_history_turns: 20
+max_history_turns: 4
 
 generation:
   temperature: 0.8
   top_p: 0.95
-  max_tokens: 2048
+  max_tokens: 512
 
 server:
   host: 127.0.0.1
@@ -97,6 +106,14 @@ server:
 
 The legacy `active_model` and `generation.max_tokens` keys remain supported; `model_id` and `generation.max_new_tokens` are also accepted. Known model aliases include `gemma_small`, `gemma`, `gemma_4`, `code_gemma`, `llama`, `llama_small`, and `qwen3-8b`. A Hugging Face model ID can also be selected directly.
 
+On NVIDIA CUDA, Transformers loads models with NF4 4-bit weights directly onto the active CUDA device. This requires `bitsandbytes` and Accelerate (included in the standard installs); CPU and other non-CUDA runtimes keep using the normal model dtype. The conservative generation defaults help leave VRAM for the prompt and KV cache. To check live usage during a response, run `nvidia-smi -l 1`; in Windows Task Manager, view the NVIDIA GPU's **CUDA** engine rather than its **3D** engine.
+
+### Checking model fit
+
+Use **Hardware fit** beside the model selector in the Web UI, or run `:fit` in the CLI. In the CLI, `:fit 12 32` checks a different machine using 12 GB of GPU memory and 32 GB of RAM. The Web UI list is searchable and sortable, shows each model's estimated speed and whether its files are present in the local Hugging Face cache, and has a **Use** button to switch models. Selecting a model that is not downloaded uses the normal model-switch flow and downloads its files when needed. Cache status checks for the required config, tokenizer, and weight files (including shards); it does not test-load the model. The read-only `GET /api/model-fit` endpoint returns the model list and cache status, accepts the same optional `gpu_vram_gb` and `ram_gb` query parameters, and detects omitted values on the server host. It lists popular text-generation models from selected Hugging Face publishers and falls back to the built-in aliases if the Hub is unavailable.
+
+Fit and speed results are estimates, not load guarantees. Memory needs use parameter count with a 20% margin and 1 GiB runtime overhead; CUDA/ROCm estimates use 2 bytes per parameter, while CPU, MPS, and XPU estimates use 4. The rough tokens-per-second figure is bandwidth-based, not a benchmark. Opening the fit list does not load or switch models; only **Use** changes the active model.
+
 The app is single-user and has no authentication. It binds to loopback by default, validates Host and browser origins, limits request/message sizes, and serializes model operations with a bounded queue. Do not expose it directly to an untrusted network. When using a proxy or a custom hostname, set `server.allowed_hosts` accordingly. `LOCAL_LLM_HOST`, `LOCAL_LLM_PORT`, and comma-separated `LOCAL_LLM_ALLOWED_HOSTS` environment variables override server settings. `LOCAL_LLM_PUBLIC_URL` overrides the browser link printed when the model is ready; set it to the externally reachable base URL without a path for custom Docker port mappings or a proxy hostname.
 
 The Web UI keeps its conversation history in browser memory and does not persist it. API clients send the conversation messages they want the model to see with each completion request.
@@ -105,7 +122,25 @@ The Web UI keeps its conversation history in browser memory and does not persist
 
 Use `http://127.0.0.1:8080/v1` as the base URL in OpenCode, Codex, or another OpenAI-compatible client. Select a model ID returned by `GET /v1/models` (for example, `google/gemma-3-1b-it`). The API has no authentication; if a client requires an API key field, use a placeholder. Keep the server on loopback or protect remote access with a trusted proxy.
 
-Supported endpoints are `GET /v1/models`, `POST /v1/models/active`, and `POST /v1/chat/completions` (including SSE streaming).
+Supported endpoints are `GET /v1/models`, `POST /v1/models/active`, `POST /v1/chat/completions` (including SSE streaming), and `POST /v1/completions` (including SSE streaming).
+
+Chat and text completion use separate model capabilities. `google/codegemma-1.1-7b-it` (alias `code_gemma_it`) supports chat; `google/codegemma-1.1-2b` (alias `code_gemma`) is completion-only and is hidden from the Web UI chat model selector. Other completion-only models are handled the same way: chat requests return HTTP 400 and direct clients to `/v1/completions`.
+
+Chat example:
+
+```bash
+curl http://127.0.0.1:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"google/codegemma-1.1-7b-it","messages":[{"role":"user","content":"Write a Python hello-world function."}]}'
+```
+
+Raw text completion example (the prompt is passed directly to the model, without a chat template):
+
+```bash
+curl http://127.0.0.1:8080/v1/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"google/codegemma-1.1-2b","prompt":"def hello():\\n    ","max_tokens":64}'
+```
 
 Function tools are returned as OpenAI-compatible `tool_calls` for the connected harness to execute; Wonderdesk does not execute tools itself. Include the tool definitions and tool-call results in subsequent completion requests to continue the conversation.
 
@@ -113,6 +148,12 @@ The server logs to the terminal and a rotating file (10 MiB, three backups); mes
 
 - `GET /health/live`: process liveness
 - `GET /health/ready`: readiness (returns 503 until the model is loaded)
+- `GET /api/models/active/status`: model download/load phase and reported byte counts, which may remain at zero until transfer updates arrive
 - `GET /metrics`: request/generation counts and durations, model state, and process memory
 
 Interactive API docs are at <http://127.0.0.1:8080/docs>.
+
+## Future Enhancements
+
+- [ ] Multi-model support
+- [ ] MCP server integration

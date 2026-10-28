@@ -1,0 +1,34 @@
+{
+  "listing": [
+    {
+      "id": "google/gemma-3-1b-it",
+      "downloads": 1234,
+      "safetensors": {
+        "parameters": {
+          "BF16": 1000000000
+        },
+        "total": 1000000000
+      }
+    },
+    {
+      "id": "google/model-without-parameter-metadata",
+      "downloads": 9999
+    }
+  ],
+  "details": {
+    "siblings": [
+      {
+        "rfilename": "model-00001-of-00002.safetensors",
+        "size": 1500000001
+      },
+      {
+        "rfilename": "model-00002-of-00002.safetensors",
+        "size": 500000007
+      },
+      {
+        "rfilename": "tokenizer.json",
+        "size": 100000
+      }
+    ]
+  }
+}

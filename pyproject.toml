@@ -12,6 +12,8 @@ dependencies = [
     "PyYAML==6.0.3",
     "torch==2.14.1",
     "transformers==5.20.2",
+    "accelerate==1.15.0",
+    "bitsandbytes==0.50.2",
     "fastapi==0.161.0",
     "uvicorn[standard]==0.54.0",
     "rich==14.1.0",
