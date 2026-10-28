@@ -2,7 +2,7 @@
 --extra-index-url https://download.pytorch.org/whl/cu130
 
 fastapi==0.161.0
-psutil==7.0.0
+psutil==7.2.2
 PyYAML==6.0.3
 rich==14.1.0
 accelerate==1.15.0
