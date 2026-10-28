@@ -6,7 +6,7 @@ ACTION="${1:-}"
 
 case "$ACTION" in
   build)
-    docker build --tag "$IMAGE" "$ROOT"
+    docker build --file "$ROOT/DOCKERFILE" --tag "$IMAGE" "$ROOT"
     ;;
   run)
     token_file="${HF_HOME:-$HOME/.cache/huggingface}/token"

@@ -2,13 +2,21 @@
 active_model: gemma_small
 runtime: transformers
 system_prompt: You are a helpful assistant.
-max_history_turns: 20
+max_history_turns: 4
 
 generation:
   temperature: 0.8
   top_p: 0.95
-  max_tokens: 2048
+  max_tokens: 512
 
 server:
   host: 127.0.0.1
   port: 8080
+
+system_prompt: |
+  You are a helpful assistant.
+  Keep answers concise: lead with the answer and use a few sentences or bullets.
+  Give more detail only when I ask or when it’s needed for correctness.
+
+generation:
+  max_tokens: 256
