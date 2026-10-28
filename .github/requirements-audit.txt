@@ -1,0 +1,10 @@
+fastapi==0.161.0
+huggingface-hub==1.31.0
+filelock==4.2.1
+httpx2==2.14.0
+psutil==7.0.0
+PyYAML==6.0.3
+rich==14.1.0
+torch==2.14.1
+transformers==5.20.2
+uvicorn[standard]==0.54.0
