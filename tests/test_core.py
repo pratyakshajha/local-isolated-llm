@@ -246,8 +246,17 @@ class CoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ServerSettings(max_message_chars=1_048_577)
 
-    def test_loads_existing_config_and_model_alias(self):
-        settings = load_settings()
+    def test_loads_config_aliases_and_model_alias(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            config_path = Path(temporary_dir) / "settings.yaml"
+            config_path.write_text(
+                "active_model: gemma_small\n"
+                "generation:\n  max_tokens: 512\n"
+                "server:\n  port: 8080\n"
+                "max_history_turns: 4\n",
+                encoding="utf-8",
+            )
+            settings = load_settings(config_path)
         self.assertEqual(settings.server.port, 8080)
         self.assertEqual(settings.generation.max_new_tokens, 512)
         self.assertEqual(settings.max_history_turns, 4)
