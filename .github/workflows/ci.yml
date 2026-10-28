@@ -60,7 +60,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build production container
-        run: docker build --file Dockerfile --tag local-isolated-llm:ci .
+        run: docker build --file DOCKERFILE --tag local-isolated-llm:ci .
       - name: Scan container image
         uses: aquasecurity/trivy-action@v0.36.0
         with:

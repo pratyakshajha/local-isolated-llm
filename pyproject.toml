@@ -7,7 +7,7 @@ name = "local-isolated-llm"
 version = "0.1.0"
 description = "Run and chat with language models locally"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "PyYAML==6.0.3",
     "torch==2.14.1",
