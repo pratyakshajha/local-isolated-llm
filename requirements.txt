@@ -1,7 +1,7 @@
 # Runtime dependencies. Install the CUDA 13.0 wheel from the official PyTorch index.
 --extra-index-url https://download.pytorch.org/whl/cu130
 
-fastapi==0.161.0
+fastapi==0.162.0
 psutil==7.0.0
 PyYAML==6.0.3
 rich==14.1.0
