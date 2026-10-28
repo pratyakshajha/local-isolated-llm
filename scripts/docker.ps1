@@ -10,7 +10,7 @@ $Root = Split-Path -Parent $PSScriptRoot
 $Image = "wonderdesk:local"
 
 if ($Action -eq "build") {
-    docker build --file (Join-Path $Root "DOCKERFILE") --tag $Image $Root
+    docker build --file (Join-Path $Root "Dockerfile") --tag $Image $Root
     exit $LASTEXITCODE
 }
 if ($Action -ne "run") {
